@@ -1,24 +1,42 @@
 import akshare as ak
 import pandas as pd
 from datetime import datetime
+import os
 
-# 1. 获取中国公路物流运价指数（月指数）
-print("正在获取公路物流运价指数...")
-df_price = ak.index_price_cflp(symbol="月指数")
+# 创建 data 文件夹
+os.makedirs("data", exist_ok=True)
 
-# 2. 获取中国公路物流运量指数（月指数）
-print("正在获取公路物流运量指数...")
-df_volume = ak.index_volume_cflp(symbol="月指数")
+print("=" * 50)
+print("开始测试 akshare 接口...")
+print("=" * 50)
 
-# 3. 打印数据摘要
-print("\n--- 公路物流运价指数 (月) ---")
-print(df_price.tail())
-print("\n--- 公路物流运量指数 (月) ---")
-print(df_volume.tail())
+# 测试1：运价指数
+try:
+    print("\n[测试] 获取公路物流运价指数 (月指数)...")
+    df_price = ak.index_price_cflp(symbol="月指数")
+    print(f"✅ 成功！数据条数: {len(df_price)}")
+    print(df_price.tail())
+except Exception as e:
+    print(f"❌ 失败: {e}")
 
-# 4. 保存为CSV文件，文件名带时间戳
-timestamp = datetime.now().strftime("%Y%m%d")
-df_price.to_csv(f"data/price_index_{timestamp}.csv", index=False)
-df_volume.to_csv(f"data/volume_index_{timestamp}.csv", index=False)
+# 测试2：运量指数
+try:
+    print("\n[测试] 获取公路物流运量指数 (月指数)...")
+    df_volume = ak.index_volume_cflp(symbol="月指数")
+    print(f"✅ 成功！数据条数: {len(df_volume)}")
+    print(df_volume.tail())
+except Exception as e:
+    print(f"❌ 失败: {e}")
 
-print(f"\n✅ 数据已保存，时间戳: {timestamp}")
+# 测试3：PMI（备选）
+try:
+    print("\n[测试] 获取制造业PMI...")
+    df_pmi = ak.macro_china_pmi()
+    print(f"✅ 成功！数据条数: {len(df_pmi)}")
+    print(df_pmi.tail())
+except Exception as e:
+    print(f"❌ 失败: {e}")
+
+print("\n" + "=" * 50)
+print("测试完成！")
+print("=" * 50)
