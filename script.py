@@ -69,61 +69,79 @@ try:
 except Exception as e:
     print(f"❌ 失败: {e}")
 
-# ========== 6. 分线路运价数据 ==========
+# ========== 6. 分线路运价数据（下载表格图片） ==========
 try:
-    print("\n[6/6] 获取分线路运价数据...")
+    print("\n[6/6] 获取分线路运价数据（下载图片）...")
     import re
     import requests
     from bs4 import BeautifulSoup
+    import shutil
 
     headers = {"User-Agent": "Mozilla/5.0"}
 
-    # 使用中物联官网的周报列表页
+    # 清空旧的图片文件夹
+    if os.path.exists("data/route_images"):
+        shutil.rmtree("data/route_images")
+    os.makedirs("data/route_images", exist_ok=True)
+
+    # 1. 获取中物联周报列表页
     list_url = "http://www.chinawuliu.com.cn/zt/jtbzwltj/list.shtml"
     resp = requests.get(list_url, headers=headers, timeout=30)
     resp.encoding = "utf-8"
     soup = BeautifulSoup(resp.text, "html.parser")
 
-    # 调试：打印页面中所有链接的文本和href
-    print("  调试：页面中找到的链接：")
-    for a in soup.find_all("a", href=True):
-        text = a.get_text(strip=True)
-        if text and ("周指数" in text or "运价" in text):
-            print(f"    - 文本: {text} | href: {a['href']}")
-
-    # 查找包含“中国公路物流运价周指数报告”的链接
+    # 2. 找到最新周报链接
     links = soup.find_all("a", string=re.compile(r"中国公路物流运价周指数报告"))
-    if links:
-        latest_url = links[0].get("href")
-        if not latest_url.startswith("http"):
-            # 处理相对路径
-            if latest_url.startswith("/"):
-                latest_url = "http://www.chinawuliu.com.cn" + latest_url
+    if not links:
+        raise Exception("未找到周报链接")
+
+    latest_url = links[0].get("href")
+    if not latest_url.startswith("http"):
+        latest_url = "http://www.chinawuliu.com.cn" + latest_url
+    print(f"  最新周报: {latest_url}")
+
+    # 3. 进入文章页，找所有图片
+    article_resp = requests.get(latest_url, headers=headers, timeout=30)
+    article_resp.encoding = "utf-8"
+    article_soup = BeautifulSoup(article_resp.text, "html.parser")
+
+    images = article_soup.find_all("img")
+    print(f"  文章页中找到 {len(images)} 张图片")
+
+    # 4. 下载图片
+    downloaded = 0
+    for i, img in enumerate(images):
+        src = img.get("src", "")
+        if not src:
+            continue
+        # 补全相对路径
+        if not src.startswith("http"):
+            if src.startswith("/"):
+                src = "http://www.chinawuliu.com.cn" + src
             else:
-                latest_url = "http://www.chinawuliu.com.cn/zt/jtbzwltj/" + latest_url
-        print(f"  找到周报链接: {latest_url}")
+                src = "http://www.chinawuliu.com.cn/lhhzq/202608/21/" + src
 
-        article_resp = requests.get(latest_url, headers=headers, timeout=30)
-        article_resp.encoding = "utf-8"
-        article_soup = BeautifulSoup(article_resp.text, "html.parser")
+        try:
+            img_resp = requests.get(src, headers=headers, timeout=30)
+            if img_resp.status_code == 200:
+                # 只保留 png/jpg 图片
+                ext = os.path.splitext(src)[1].lower()
+                if ext not in [".png", ".jpg", ".jpeg", ".gif"]:
+                    ext = ".png"
+                filename = f"data/route_images/route_table_{i+1}{ext}"
+                with open(filename, "wb") as f:
+                    f.write(img_resp.content)
+                downloaded += 1
+                print(f"    ✅ 下载: {filename}  (源: {src})")
+        except Exception as e:
+            print(f"    ⚠️ 下载失败: {src} - {e}")
 
-        # 调试：打印文章页中所有表格
-        tables = article_soup.find_all("table")
-        print(f"  调试：文章页中找到 {len(tables)} 个表格")
-        for i, table in enumerate(tables):
-            rows = table.find_all("tr")
-            print(f"    表格{i+1}: {len(rows)} 行")
-
-        if tables:
-            # 尝试取第一个表格（通常是表1）
-            route_df = pd.read_html(str(tables[0]))[0]
-            f = "data/route_price.csv"
-            route_df.to_csv(f, index=False, encoding='utf-8-sig')
-            success_files.append(f)
-            print(f"✅ 分线路数据获取成功，共 {len(route_df)} 行")
-        else:
-            print("⚠️ 未找到HTML表格")
+    if downloaded > 0:
+        f = "data/route_images/"
+        success_files.append(f)
+        print(f"✅ 分线路图片下载成功，共 {downloaded} 张")
     else:
-        print("⚠️ 未找到周报链接")
+        print("⚠️ 未下载到任何图片")
+
 except Exception as e:
     print(f"❌ 分线路数据获取失败: {e}")
