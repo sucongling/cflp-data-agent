@@ -75,9 +75,13 @@ try:
     import re
     import requests
     from bs4 import BeautifulSoup
+    from urllib.parse import urljoin
     import shutil
 
-    headers = {"User-Agent": "Mozilla/5.0"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "http://www.chinawuliu.com.cn/",
+    }
 
     # 清空旧的图片文件夹
     if os.path.exists("data/route_images"):
@@ -97,7 +101,7 @@ try:
 
     latest_url = links[0].get("href")
     if not latest_url.startswith("http"):
-        latest_url = "http://www.chinawuliu.com.cn" + latest_url
+        latest_url = urljoin("http://www.chinawuliu.com.cn", latest_url)
     print(f"  最新周报: {latest_url}")
 
     # 3. 进入文章页，找所有图片
@@ -111,34 +115,36 @@ try:
     # 4. 下载图片
     downloaded = 0
     for i, img in enumerate(images):
-        src = img.get("src", "")
+        src = img.get("src", "") or img.get("data-src", "")
         if not src:
+            print(f"    [{i+1}] 跳过（无 src）")
             continue
-        # 补全相对路径
-        if not src.startswith("http"):
-            if src.startswith("/"):
-                src = "http://www.chinawuliu.com.cn" + src
-            else:
-                src = "http://www.chinawuliu.com.cn/lhhzq/202608/21/" + src
+
+        # 使用 urljoin 自动处理相对路径
+        full_url = urljoin(latest_url, src)
+        print(f"    [{i+1}] 原始 src: {src}")
+        print(f"        完整 URL: {full_url}")
 
         try:
-            img_resp = requests.get(src, headers=headers, timeout=30)
+            img_resp = requests.get(full_url, headers=headers, timeout=30)
+            print(f"        HTTP 状态: {img_resp.status_code}")
+
             if img_resp.status_code == 200:
-                # 只保留 png/jpg 图片
-                ext = os.path.splitext(src)[1].lower()
+                # 从 URL 提取扩展名
+                ext = os.path.splitext(full_url.split("?")[0])[1].lower()
                 if ext not in [".png", ".jpg", ".jpeg", ".gif"]:
                     ext = ".png"
                 filename = f"data/route_images/route_table_{i+1}{ext}"
                 with open(filename, "wb") as f:
                     f.write(img_resp.content)
+                size_kb = len(img_resp.content) / 1024
                 downloaded += 1
-                print(f"    ✅ 下载: {filename}  (源: {src})")
+                print(f"        ✅ 已保存: {filename} ({size_kb:.1f} KB)")
         except Exception as e:
-            print(f"    ⚠️ 下载失败: {src} - {e}")
+            print(f"        ⚠️ 下载失败: {e}")
 
     if downloaded > 0:
-        f = "data/route_images/"
-        success_files.append(f)
+        success_files.append("data/route_images/")
         print(f"✅ 分线路图片下载成功，共 {downloaded} 张")
     else:
         print("⚠️ 未下载到任何图片")
