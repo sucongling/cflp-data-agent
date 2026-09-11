@@ -24,13 +24,12 @@ async function loadCSV(path) {
   }
 }
 
-// 关键：按日期列排序（从旧到新）
+// 按日期列排序（从旧到新）
 function sortByDate(rows, dateKeys) {
   return [...rows].sort((a, b) => {
     const getDate = (r) => {
       for (const k of dateKeys) {
         if (r[k]) {
-          // 支持 "2026-08-31" / "2026年08月份" / "2026-08" 等格式
           return r[k].replace(/[年月]/g, '-').replace(/月份?/, '').replace(/-+$/, '').padEnd(7, '0');
         }
       }
@@ -47,7 +46,6 @@ function updateCard(cardId, value, period) {
   card.querySelector('.period').textContent = period || '—';
 }
 
-// 通用折线图
 function drawLineChart(canvasId, labels, values, color) {
   const el = document.getElementById(canvasId);
   if (!el) return;
@@ -74,6 +72,8 @@ function drawLineChart(canvasId, labels, values, color) {
 
 // ============ 主逻辑 ============
 async function init() {
+  console.log('看板开始加载...');
+
   // ---------- 制造业 PMI ----------
   const pmiData = sortByDate(
     await loadCSV('data/pmi_manufacturing.csv'),
@@ -108,25 +108,6 @@ async function init() {
     );
   }
 
-  // ---------- 仓储指数 ----------
-  const warehouseData = await loadCSV('data/warehouse_index.csv');
-  if (warehouseData.length > 0) {
-    // 按日期排序（期数格式：2026-08）
-    const sorted = [...warehouseData].sort((a, b) =>
-      (a['期数'] || '').localeCompare(b['期数'] || '')
-    );
-    const latest = sorted[sorted.length - 1];
-    updateCard('card-warehouse', latest['综合指数'], latest['期数']);
-
-    // 图表
-    const recent = sorted.slice(-24);
-    drawLineChart('chart-warehouse',
-      recent.map(d => d['期数']),
-      recent.map(d => parseFloat(d['综合指数'])),
-      '#06b6d4'
-    );
-  }
-
   // ---------- 物流景气指数 ----------
   const lpiData = await loadCSV('data/lpi.csv');
   if (lpiData.length > 0) {
@@ -146,15 +127,26 @@ async function init() {
     );
   }
 
-  // ---------- 仓储指数 ----------
+  // ---------- 中国仓储指数 ----------
   const warehouseData = await loadCSV('data/warehouse_index.csv');
   if (warehouseData.length > 0) {
-    const latest = warehouseData[warehouseData.length - 1];
+    const sorted = [...warehouseData].sort((a, b) =>
+      (a['期数'] || '').localeCompare(b['期数'] || '')
+    );
+    const latest = sorted[sorted.length - 1];
     updateCard('card-warehouse', latest['综合指数'], latest['期数']);
+
+    const recent = sorted.slice(-24);
+    drawLineChart('chart-warehouse',
+      recent.map(d => d['期数']),
+      recent.map(d => parseFloat(d['综合指数'])),
+      '#06b6d4'
+    );
   }
 
   // ---------- 分线路运价表 ----------
   const routeData = await loadCSV('data/route_price.csv');
+  const routeBox = document.getElementById('route-table-content');
   if (routeData.length > 0) {
     const allDates = [...new Set(routeData.map(r => r['发布日期']))].sort();
     const latestDate = allDates[allDates.length - 1];
@@ -183,9 +175,9 @@ async function init() {
       html += '</tr>';
     });
     html += '</tbody></table>';
-    document.getElementById('route-table-content').innerHTML = html;
+    routeBox.innerHTML = html;
   } else {
-    document.getElementById('route-table-content').textContent = '暂无数据';
+    routeBox.textContent = '暂无数据';
   }
 
   // ---------- 最后更新时间 ----------
@@ -199,6 +191,8 @@ async function init() {
       }
     }
   } catch (e) {}
+
+  console.log('看板加载完成');
 }
 
 init();
