@@ -69,9 +69,9 @@ try:
 except Exception as e:
     print(f"❌ 失败: {e}")
 
-# ========== 6. 分线路运价数据（下载表格图片） ==========
+# ========== 6. 分线路运价数据（下载图片 + OCR识别） ==========
 try:
-    print("\n[6/6] 获取分线路运价数据（下载图片）...")
+    print("\n[6/6] 获取分线路运价数据...")
     import re
     import requests
     from bs4 import BeautifulSoup
@@ -83,18 +83,16 @@ try:
         "Referer": "http://www.chinawuliu.com.cn/",
     }
 
-    # 清空旧的图片文件夹
     if os.path.exists("data/route_images"):
         shutil.rmtree("data/route_images")
     os.makedirs("data/route_images", exist_ok=True)
 
-    # 1. 获取中物联周报列表页
+    # 1. 找最新周报
     list_url = "http://www.chinawuliu.com.cn/zt/jtbzwltj/list.shtml"
     resp = requests.get(list_url, headers=headers, timeout=30)
     resp.encoding = "utf-8"
     soup = BeautifulSoup(resp.text, "html.parser")
 
-    # 2. 找到最新周报链接
     links = soup.find_all("a", string=re.compile(r"中国公路物流运价周指数报告"))
     if not links:
         raise Exception("未找到周报链接")
@@ -104,50 +102,80 @@ try:
         latest_url = urljoin("http://www.chinawuliu.com.cn", latest_url)
     print(f"  最新周报: {latest_url}")
 
-    # 3. 进入文章页，找所有图片
+    # 2. 下载图片
     article_resp = requests.get(latest_url, headers=headers, timeout=30)
     article_resp.encoding = "utf-8"
     article_soup = BeautifulSoup(article_resp.text, "html.parser")
 
     images = article_soup.find_all("img")
-    print(f"  文章页中找到 {len(images)} 张图片")
-
-    # 4. 下载图片
-    downloaded = 0
     for i, img in enumerate(images):
         src = img.get("src", "") or img.get("data-src", "")
         if not src:
-            print(f"    [{i+1}] 跳过（无 src）")
             continue
-
-        # 使用 urljoin 自动处理相对路径
         full_url = urljoin(latest_url, src)
-        print(f"    [{i+1}] 原始 src: {src}")
-        print(f"        完整 URL: {full_url}")
+        if i + 1 == 5:  # 第5张是表1
+            try:
+                img_resp = requests.get(full_url, headers=headers, timeout=30)
+                if img_resp.status_code == 200:
+                    table_img_path = "data/route_images/route_table_5.png"
+                    with open(table_img_path, "wb") as f:
+                        f.write(img_resp.content)
+                    print(f"  ✅ 表1图片已下载: {table_img_path}")
+            except Exception as e:
+                print(f"  ⚠️ 图片下载失败: {e}")
 
-        try:
-            img_resp = requests.get(full_url, headers=headers, timeout=30)
-            print(f"        HTTP 状态: {img_resp.status_code}")
+    # 3. OCR 识别
+    if os.path.exists("data/route_images/route_table_5.png"):
+        print("  正在 OCR 识别表1...")
+        from rapidocr_onnxruntime import RapidOCR
 
-            if img_resp.status_code == 200:
-                # 从 URL 提取扩展名
-                ext = os.path.splitext(full_url.split("?")[0])[1].lower()
-                if ext not in [".png", ".jpg", ".jpeg", ".gif"]:
-                    ext = ".png"
-                filename = f"data/route_images/route_table_{i+1}{ext}"
-                with open(filename, "wb") as f:
-                    f.write(img_resp.content)
-                size_kb = len(img_resp.content) / 1024
-                downloaded += 1
-                print(f"        ✅ 已保存: {filename} ({size_kb:.1f} KB)")
-        except Exception as e:
-            print(f"        ⚠️ 下载失败: {e}")
+        engine = RapidOCR()
+        result, _ = engine("data/route_images/route_table_5.png")
 
-    if downloaded > 0:
-        success_files.append("data/route_images/")
-        print(f"✅ 分线路图片下载成功，共 {downloaded} 张")
+        if not result:
+            raise Exception("OCR 未识别到任何文字")
+
+        # 提取文本块及中心坐标
+        blocks = []
+        for box, text, score in result:
+            xs = [p[0] for p in box]
+            ys = [p[1] for p in box]
+            blocks.append({
+                "text": text.strip(),
+                "x": sum(xs) / 4,
+                "y": sum(ys) / 4,
+            })
+
+        # 按 y 坐标分组为行
+        blocks.sort(key=lambda b: b["y"])
+        rows = []
+        current_row = []
+        last_y = None
+        for b in blocks:
+            if last_y is None or abs(b["y"] - last_y) < 15:
+                current_row.append(b)
+            else:
+                rows.append(sorted(current_row, key=lambda x: x["x"]))
+                current_row = [b]
+            last_y = b["y"]
+        if current_row:
+            rows.append(sorted(current_row, key=lambda x: x["x"]))
+
+        # 构建 DataFrame
+        table_data = [[cell["text"] for cell in row] for row in rows]
+        # 补齐列数
+        max_cols = max(len(r) for r in table_data) if table_data else 0
+        table_data = [r + [""] * (max_cols - len(r)) for r in table_data]
+
+        route_df = pd.DataFrame(table_data)
+        f = "data/route_price.csv"
+        route_df.to_csv(f, index=False, encoding='utf-8-sig')
+        success_files.append(f)
+
+        print(f"✅ 分线路数据 OCR 成功，共 {len(route_df)} 行")
+        print(route_df.to_string())
     else:
-        print("⚠️ 未下载到任何图片")
+        print("⚠️ 表1图片未下载，跳过 OCR")
 
 except Exception as e:
     print(f"❌ 分线路数据获取失败: {e}")
