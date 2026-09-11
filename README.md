@@ -3,14 +3,12 @@
 自动采集中国物流与采购联合会公开数据，通过 GitHub Actions 定时运行，结果展示在 GitHub Pages。
 
 🔗 看板地址：https://sucongling.github.io/cflp-data-agent/
-```markdown
 [![Scrape Task](https://github.com/sucongling/cflp-data-agent/actions/workflows/scrape_task.yml/badge.svg)](https://github.com/sucongling/cflp-data-agent/actions/workflows/scrape_task.yml)
-```
 
 ## 数据源
 
 | 数据 | 采集方式 | 更新频率 |
-| :--- | :--- | :--- |
+
 | 制造业 PMI | akshare 接口 | 每月 |
 | 公路物流运价指数（月度） | akshare 接口 | 每月 |
 | 公路物流运价指数（周度） | akshare 接口 | 每周 |
@@ -21,24 +19,22 @@
 
 ## 项目结构
 
-cflp-data-agent/
-├── script.py # 数据采集脚本
-├── .github/workflows/
-│ └── scrape_task.yml # 定时任务配置
-├── data/ # 采集到的原始 CSV
-│ ├── pmi_manufacturing.csv
-│ ├── price_index_month.csv
-│ ├── price_index_week.csv
-│ ├── volume_index_month.csv
-│ ├── lpi.csv
-│ ├── warehouse_index.csv
-│ ├── route_price.csv
-│ └── route_images/ # OCR 用的表格图片
-└── docs/ # GitHub Pages 看板
-├── index.html
-├── style.css
-├── app.js
-└── data/ # 看板读取的 CSV（Actions 自动同步）
+- `script.py` — 数据采集脚本
+- `.github/workflows/scrape_task.yml` — 定时任务配置
+- `data/` — 采集到的原始 CSV
+  - `pmi_manufacturing.csv` — 制造业 PMI
+  - `price_index_month.csv` — 月度运价指数
+  - `price_index_week.csv` — 周度运价指数
+  - `volume_index_month.csv` — 月度运量指数
+  - `lpi.csv` — 物流景气指数
+  - `warehouse_index.csv` — 中国仓储指数
+  - `route_price.csv` — 分线路运价（累积）
+  - `route_images/` — OCR 用的表格图片
+- `docs/` — GitHub Pages 看板
+  - `index.html` — 页面结构
+  - `style.css` — 样式
+  - `app.js` — 数据加载与图表
+  - `data/` — 看板读取的 CSV（Actions 自动同步）
 
 ## 运行方式
 
