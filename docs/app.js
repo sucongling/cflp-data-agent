@@ -108,20 +108,22 @@ async function init() {
     );
   }
 
-  // ---------- 公路物流运量指数 ----------
-  const volumeData = sortByDate(
-    await loadCSV('data/volume_index_month.csv'),
-    ['日期']
-  );
-  if (volumeData.length > 0) {
-    const latest = volumeData[volumeData.length - 1];
-    updateCard('card-volume', latest['定基指数'], latest['日期']);
+  // ---------- 仓储指数 ----------
+  const warehouseData = await loadCSV('data/warehouse_index.csv');
+  if (warehouseData.length > 0) {
+    // 按日期排序（期数格式：2026-08）
+    const sorted = [...warehouseData].sort((a, b) =>
+      (a['期数'] || '').localeCompare(b['期数'] || '')
+    );
+    const latest = sorted[sorted.length - 1];
+    updateCard('card-warehouse', latest['综合指数'], latest['期数']);
 
-    const recent = volumeData.slice(-24);
-    drawLineChart('chart-volume',
-      recent.map(d => d['日期']),
-      recent.map(d => parseFloat(d['定基指数'])),
-      '#f59e0b'
+    // 图表
+    const recent = sorted.slice(-24);
+    drawLineChart('chart-warehouse',
+      recent.map(d => d['期数']),
+      recent.map(d => parseFloat(d['综合指数'])),
+      '#06b6d4'
     );
   }
 
