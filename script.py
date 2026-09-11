@@ -247,3 +247,89 @@ except StopIteration:
     pass
 except Exception as e:
     print(f"❌ 分线路数据获取失败: {e}")
+
+# ========== 7. 中国仓储指数 ==========
+try:
+    print("\n[7/7] 获取中国仓储指数...")
+    import re
+    import requests
+    from bs4 import BeautifulSoup
+    from urllib.parse import urljoin
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        "Referer": "http://www.chinawuliu.com.cn/",
+    }
+
+    # 1. 获取中物联统计信息列表页
+    list_url = "http://www.chinawuliu.com.cn/lhhzq/tjxx/index.shtml"
+    resp = requests.get(list_url, headers=headers, timeout=30)
+    resp.encoding = "utf-8"
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    # 2. 找到最新一篇“中国仓储指数为”文章
+    links = soup.find_all("a", string=re.compile(r"中国仓储指数为"))
+    if not links:
+        raise Exception("未找到仓储指数文章链接")
+
+    latest_url = links[0].get("href")
+    if not latest_url.startswith("http"):
+        latest_url = urljoin("http://www.chinawuliu.com.cn", latest_url)
+    print(f"  最新文章: {latest_url}")
+
+    # 3. 进入文章页，提取综合指数值
+    article_resp = requests.get(latest_url, headers=headers, timeout=30)
+    article_resp.encoding = "utf-8"
+    article_soup = BeautifulSoup(article_resp.text, "html.parser")
+    text = article_soup.get_text()
+
+    # 提取“2026年8月份为48.5%”这类模式
+    m = re.search(r"(\d{4})年(\d{1,2})月份为([\d.]+)%", text)
+    if not m:
+        raise Exception("未识别到仓储指数值")
+
+    year, month, index_value = m.group(1), m.group(2).zfill(2), m.group(3)
+    period = f"{year}-{month}"
+    print(f"  期数: {period}，综合指数: {index_value}")
+
+    # 4. 去重检查
+    f = "data/warehouse_index.csv"
+    existing_df = pd.DataFrame()
+    if os.path.exists(f):
+        existing_df = pd.read_csv(f, encoding='utf-8-sig', dtype=str)
+        if "期数" in existing_df.columns and period in existing_df["期数"].values:
+            print(f"  ⏭️ {period} 数据已存在，跳过")
+            success_files.append(f)
+            raise StopIteration()
+
+    # 5. 构建记录（可扩展分项指数）
+    new_record = {
+        "期数": period,
+        "综合指数": index_value,
+        "发布日期": datetime.now().strftime("%Y-%m-%d"),
+    }
+
+    # 尝试提取分项指数（新订单、期末库存、平均库存周转次数等）
+    for item_name in ["新订单指数", "期末库存指数", "平均库存周转次数指数", "企业员工指数", "业务活动预期指数"]:
+        pattern = rf"{item_name}为([\d.]+)%"
+        item_m = re.search(pattern, text)
+        if item_m:
+            new_record[item_name] = item_m.group(1)
+
+    new_df = pd.DataFrame([new_record])
+
+    # 6. 合并
+    if not existing_df.empty:
+        merged_df = pd.concat([existing_df, new_df], ignore_index=True)
+        merged_df = merged_df.drop_duplicates(subset=["期数"], keep="last")
+    else:
+        merged_df = new_df
+
+    merged_df.to_csv(f, index=False, encoding='utf-8-sig')
+    success_files.append(f)
+    print(f"✅ 仓储指数累积成功，数据库共 {len(merged_df)} 行")
+
+except StopIteration:
+    pass
+except Exception as e:
+    print(f"❌ 仓储指数获取失败: {e}")
