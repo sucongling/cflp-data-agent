@@ -168,6 +168,10 @@ try:
         table_data = [r + [""] * (max_cols - len(r)) for r in table_data]
 
         route_df = pd.DataFrame(table_data)
+        # 用第一行作为表头
+        if len(route_df) > 1: 
+           route_df.columns = route_df.iloc[0]
+           route_df = route_df.iloc[1:].reset_index(drop=True)
         f = "data/route_price.csv"
         route_df.to_csv(f, index=False, encoding='utf-8-sig')
         success_files.append(f)
