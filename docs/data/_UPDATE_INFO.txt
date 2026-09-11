@@ -1,0 +1,7 @@
+最后更新: 2026-09-11T07:33:42.311045
+成功项目数: 5
+  - data/price_index_month.csv
+  - data/volume_index_month.csv
+  - data/price_index_week.csv
+  - data/pmi_manufacturing.csv
+  - data/lpi.csv
