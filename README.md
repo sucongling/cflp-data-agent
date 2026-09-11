@@ -5,14 +5,15 @@
 🔗 看板地址：https://sucongling.github.io/cflp-data-agent/
 [![Scrape Task](https://github.com/sucongling/cflp-data-agent/actions/workflows/scrape_task.yml/badge.svg)](https://github.com/sucongling/cflp-data-agent/actions/workflows/scrape_task.yml)
 
+
 ## 数据源
 
 | 数据 | 采集方式 | 更新频率 |
-
+| :--- | :--- | :--- |
 | 制造业 PMI | akshare 接口 | 每月 |
 | 公路物流运价指数（月度） | akshare 接口 | 每月 |
 | 公路物流运价指数（周度） | akshare 接口 | 每周 |
-| 公路物流运量指数 | akshare 接口 | 已停更（截至2020-08） |
+| 公路物流运量指数 | akshare 接口 | 已停更（截至 2020-08） |
 | 物流景气指数 | akshare 接口 | 每月 |
 | 中国仓储指数 | 网页抓取 | 每月 |
 | 分线路运价表 | 网页抓取 + OCR 识别 | 每周（累积） |
