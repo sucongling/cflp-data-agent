@@ -89,3 +89,44 @@ with open("data/_UPDATE_INFO.txt", "w", encoding="utf-8") as fp:
     fp.write("文件列表:\n")
     for f in success_files:
         fp.write(f"  - {f}\n")
+# ========== 7. 分线路运价数据 ==========
+try:
+    print("\n[7/7] 获取分线路运价数据...")
+    import requests
+    from bs4 import BeautifulSoup
+    
+    headers = {"User-Agent": "Mozilla/5.0"}
+    
+    # 方式1：尝试从酒类分会页面获取
+    list_url = "http://www.56jiu.org.cn/index/news/index.html"
+    resp = requests.get(list_url, headers=headers, timeout=30)
+    resp.encoding = "utf-8"
+    soup = BeautifulSoup(resp.text, "html.parser")
+    
+    # 找到最新周报链接
+    links = soup.find_all("a", string=re.compile(r"中国公路物流运价周指数报告"))
+    if links:
+        latest_url = links[0].get("href")
+        if not latest_url.startswith("http"):
+            latest_url = "http://www.56jiu.org.cn" + latest_url
+        
+        print(f"  找到周报链接: {latest_url}")
+        article_resp = requests.get(latest_url, headers=headers, timeout=30)
+        article_resp.encoding = "utf-8"
+        article_soup = BeautifulSoup(article_resp.text, "html.parser")
+        
+        # 解析表格
+        tables = article_soup.find_all("table")
+        if tables:
+            route_df = pd.read_html(str(tables[0]))[0]
+            f = "data/route_price.csv"
+            route_df.to_csv(f, index=False, encoding='utf-8-sig')
+            success_files.append(f)
+            print(f"✅ 分线路数据获取成功，共 {len(route_df)} 行")
+            print(route_df.head())
+        else:
+            print("⚠️ 未找到HTML表格，尝试图片方案")
+    else:
+        print("⚠️ 未找到周报链接")
+except Exception as e:
+    print(f"❌ 分线路数据获取失败: {e}")
