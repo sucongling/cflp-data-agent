@@ -3,6 +3,9 @@
 自动采集中国物流与采购联合会公开数据，通过 GitHub Actions 定时运行，结果展示在 GitHub Pages。
 
 🔗 看板地址：https://sucongling.github.io/cflp-data-agent/
+```markdown
+[![Scrape Task](https://github.com/sucongling/cflp-data-agent/actions/workflows/scrape_task.yml/badge.svg)](https://github.com/sucongling/cflp-data-agent/actions/workflows/scrape_task.yml)
+```
 
 ## 数据源
 
@@ -18,17 +21,24 @@
 
 ## 项目结构
 
-\`\`\`
-├── script.py              # 数据采集脚本
+cflp-data-agent/
+├── script.py # 数据采集脚本
 ├── .github/workflows/
-│   └── scrape_task.yml    # 定时任务配置
-├── data/                  # 采集到的原始 CSV
-└── docs/                  # GitHub Pages 看板
-    ├── index.html
-    ├── style.css
-    ├── app.js
-    └── data/              # 看板读取的 CSV（Actions 自动同步）
-\`\`\`
+│ └── scrape_task.yml # 定时任务配置
+├── data/ # 采集到的原始 CSV
+│ ├── pmi_manufacturing.csv
+│ ├── price_index_month.csv
+│ ├── price_index_week.csv
+│ ├── volume_index_month.csv
+│ ├── lpi.csv
+│ ├── warehouse_index.csv
+│ ├── route_price.csv
+│ └── route_images/ # OCR 用的表格图片
+└── docs/ # GitHub Pages 看板
+├── index.html
+├── style.css
+├── app.js
+└── data/ # 看板读取的 CSV（Actions 自动同步）
 
 ## 运行方式
 
