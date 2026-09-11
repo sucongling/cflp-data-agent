@@ -69,26 +69,53 @@ try:
 except Exception as e:
     print(f"❌ 失败: {e}")
 
-# 6. 分线路运价数据
+# ========== 6. 分线路运价数据 ==========
 try:
     print("\n[6/6] 获取分线路运价数据...")
+    import re
+    import requests
+    from bs4 import BeautifulSoup
+
     headers = {"User-Agent": "Mozilla/5.0"}
-    list_url = "http://www.56jiu.org.cn/index/news/index.html"
+
+    # 使用中物联官网的周报列表页
+    list_url = "http://www.chinawuliu.com.cn/zt/jtbzwltj/list.shtml"
     resp = requests.get(list_url, headers=headers, timeout=30)
     resp.encoding = "utf-8"
     soup = BeautifulSoup(resp.text, "html.parser")
-    
+
+    # 调试：打印页面中所有链接的文本和href
+    print("  调试：页面中找到的链接：")
+    for a in soup.find_all("a", href=True):
+        text = a.get_text(strip=True)
+        if text and ("周指数" in text or "运价" in text):
+            print(f"    - 文本: {text} | href: {a['href']}")
+
+    # 查找包含“中国公路物流运价周指数报告”的链接
     links = soup.find_all("a", string=re.compile(r"中国公路物流运价周指数报告"))
     if links:
         latest_url = links[0].get("href")
         if not latest_url.startswith("http"):
-            latest_url = "http://www.56jiu.org.cn" + latest_url
+            # 处理相对路径
+            if latest_url.startswith("/"):
+                latest_url = "http://www.chinawuliu.com.cn" + latest_url
+            else:
+                latest_url = "http://www.chinawuliu.com.cn/zt/jtbzwltj/" + latest_url
         print(f"  找到周报链接: {latest_url}")
+
         article_resp = requests.get(latest_url, headers=headers, timeout=30)
         article_resp.encoding = "utf-8"
         article_soup = BeautifulSoup(article_resp.text, "html.parser")
+
+        # 调试：打印文章页中所有表格
         tables = article_soup.find_all("table")
+        print(f"  调试：文章页中找到 {len(tables)} 个表格")
+        for i, table in enumerate(tables):
+            rows = table.find_all("tr")
+            print(f"    表格{i+1}: {len(rows)} 行")
+
         if tables:
+            # 尝试取第一个表格（通常是表1）
             route_df = pd.read_html(str(tables[0]))[0]
             f = "data/route_price.csv"
             route_df.to_csv(f, index=False, encoding='utf-8-sig')
@@ -100,14 +127,3 @@ try:
         print("⚠️ 未找到周报链接")
 except Exception as e:
     print(f"❌ 分线路数据获取失败: {e}")
-
-# 元数据
-print("\n" + "=" * 60)
-print(f"采集完成，共成功 {len(success_files)} 项")
-print("=" * 60)
-
-with open("data/_UPDATE_INFO.txt", "w", encoding="utf-8") as fp:
-    fp.write(f"最后更新: {datetime.now().isoformat()}\n")
-    fp.write(f"成功项目数: {len(success_files)}\n")
-    for f in success_files:
-        fp.write(f"  - {f}\n")
