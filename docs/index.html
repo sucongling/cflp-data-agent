@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>中国物流数据看板</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+</head>
+<body>
+  <header>
+    <h1>📊 中国物流数据看板</h1>
+    <p class="subtitle">
+      数据来源：中国物流与采购联合会 · 自动更新
+      <span id="last-update"></span>
+    </p>
+  </header>
+
+  <main>
+    <!-- 数据卡片 -->
+    <section class="cards" id="cards">
+      <div class="card" id="card-pmi">
+        <h3>制造业 PMI</h3>
+        <p class="value">—</p>
+        <p class="period">—</p>
+      </div>
+      <div class="card" id="card-price-month">
+        <h3>公路物流运价指数（月）</h3>
+        <p class="value">—</p>
+        <p class="period">—</p>
+      </div>
+      <div class="card" id="card-volume">
+        <h3>公路物流运量指数</h3>
+        <p class="value">—</p>
+        <p class="period">—</p>
+      </div>
+      <div class="card" id="card-lpi">
+        <h3>物流景气指数</h3>
+        <p class="value">—</p>
+        <p class="period">—</p>
+      </div>
+      <div class="card" id="card-warehouse">
+        <h3>中国仓储指数</h3>
+        <p class="value">—</p>
+        <p class="period">—</p>
+      </div>
+    </section>
+
+    <!-- 图表 -->
+    <section class="charts">
+      <div class="chart-box">
+        <h3>公路物流运价指数（月度）</h3>
+        <canvas id="chart-price-month"></canvas>
+      </div>
+      <div class="chart-box">
+        <h3>制造业 PMI</h3>
+        <canvas id="chart-pmi"></canvas>
+      </div>
+      <div class="chart-box">
+        <h3>公路物流运量指数（月度）</h3>
+        <canvas id="chart-volume"></canvas>
+      </div>
+      <div class="chart-box">
+        <h3>物流景气指数</h3>
+        <canvas id="chart-lpi"></canvas>
+      </div>
+    </section>
+
+    <!-- 分线路数据表 -->
+    <section class="route-table">
+      <h3>分线路运价（最新一期）</h3>
+      <div id="route-table-content">加载中...</div>
+    </section>
+  </main>
+
+  <footer>
+    <p>数据每日自动采集 · 由 GitHub Actions 驱动</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
