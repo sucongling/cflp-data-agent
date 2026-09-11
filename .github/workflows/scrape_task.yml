@@ -2,7 +2,8 @@ name: Scrape Task
 
 on:
   schedule:
-    - cron: "0 9 1 * *"
+    # 每周六上午 9 点（UTC）运行
+    - cron: "0 9 * * 6"
   workflow_dispatch:
 
 jobs:
