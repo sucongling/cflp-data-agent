@@ -68,8 +68,7 @@ try:
     print(f"✅ 成功，共 {len(df)} 条")
 except Exception as e:
     print(f"❌ 失败: {e}")
-
-# ========== 6. 分线路运价数据（下载图片 + OCR识别） ==========
+# ========== 6. 分线路运价数据（下载图片 + OCR识别 + 纵向累积） ==========
 try:
     print("\n[6/6] 获取分线路运价数据...")
     import re
@@ -102,84 +101,149 @@ try:
         latest_url = urljoin("http://www.chinawuliu.com.cn", latest_url)
     print(f"  最新周报: {latest_url}")
 
-    # 2. 下载图片
+    # 2. 提取发布日期
+    m = re.search(r"/(\d{6})/(\d{2})/", latest_url)
+    if m:
+        publish_date = f"{m.group(1)[:4]}-{m.group(1)[4:6]}-{m.group(2)}"
+    else:
+        publish_date = datetime.now().strftime("%Y-%m-%d")
+    print(f"  发布日期: {publish_date}")
+
+    # 3. 去重检查
+    f = "data/route_price.csv"
+    existing_df = pd.DataFrame()
+    if os.path.exists(f):
+        existing_df = pd.read_csv(f, encoding='utf-8-sig', dtype=str)
+        print(f"  已存在数据库，共 {len(existing_df)} 行")
+        if "发布日期" in existing_df.columns and publish_date in existing_df["发布日期"].values:
+            print(f"  ⏭️ {publish_date} 数据已存在，跳过")
+            success_files.append(f)
+            raise StopIteration()
+
+    # 4. 下载表1图片
     article_resp = requests.get(latest_url, headers=headers, timeout=30)
     article_resp.encoding = "utf-8"
     article_soup = BeautifulSoup(article_resp.text, "html.parser")
 
     images = article_soup.find_all("img")
+    table_img_path = None
     for i, img in enumerate(images):
         src = img.get("src", "") or img.get("data-src", "")
         if not src:
             continue
-        full_url = urljoin(latest_url, src)
-        if i + 1 == 5:  # 第5张是表1
+        if i + 1 == 5:
+            full_url = urljoin(latest_url, src)
             try:
                 img_resp = requests.get(full_url, headers=headers, timeout=30)
                 if img_resp.status_code == 200:
                     table_img_path = "data/route_images/route_table_5.png"
-                    with open(table_img_path, "wb") as f:
-                        f.write(img_resp.content)
-                    print(f"  ✅ 表1图片已下载: {table_img_path}")
+                    with open(table_img_path, "wb") as fp:
+                        fp.write(img_resp.content)
+                    print(f"  ✅ 表1图片已下载")
             except Exception as e:
                 print(f"  ⚠️ 图片下载失败: {e}")
 
-    # 3. OCR 识别
-    if os.path.exists("data/route_images/route_table_5.png"):
-        print("  正在 OCR 识别表1...")
-        from rapidocr_onnxruntime import RapidOCR
+    if not table_img_path or not os.path.exists(table_img_path):
+        raise Exception("表1图片未下载")
 
-        engine = RapidOCR()
-        result, _ = engine("data/route_images/route_table_5.png")
+    # 5. OCR 识别
+    print("  正在 OCR 识别...")
+    from rapidocr_onnxruntime import RapidOCR
 
-        if not result:
-            raise Exception("OCR 未识别到任何文字")
+    engine = RapidOCR()
+    result, _ = engine(table_img_path)
 
-        # 提取文本块及中心坐标
-        blocks = []
-        for box, text, score in result:
-            xs = [p[0] for p in box]
-            ys = [p[1] for p in box]
-            blocks.append({
-                "text": text.strip(),
-                "x": sum(xs) / 4,
-                "y": sum(ys) / 4,
-            })
+    if not result:
+        raise Exception("OCR 未识别到任何文字")
 
-        # 按 y 坐标分组为行
-        blocks.sort(key=lambda b: b["y"])
-        rows = []
-        current_row = []
-        last_y = None
-        for b in blocks:
-            if last_y is None or abs(b["y"] - last_y) < 15:
-                current_row.append(b)
-            else:
-                rows.append(sorted(current_row, key=lambda x: x["x"]))
-                current_row = [b]
-            last_y = b["y"]
-        if current_row:
+    # 6. 按 y 坐标分组为行
+    blocks = []
+    for box, text, score in result:
+        xs = [p[0] for p in box]
+        ys = [p[1] for p in box]
+        blocks.append({"text": text.strip(), "x": sum(xs) / 4, "y": sum(ys) / 4})
+
+    blocks.sort(key=lambda b: b["y"])
+    rows = []
+    current_row = []
+    last_y = None
+    for b in blocks:
+        if last_y is None or abs(b["y"] - last_y) < 15:
+            current_row.append(b)
+        else:
             rows.append(sorted(current_row, key=lambda x: x["x"]))
+            current_row = [b]
+        last_y = b["y"]
+    if current_row:
+        rows.append(sorted(current_row, key=lambda x: x["x"]))
 
-        # 构建 DataFrame
-        table_data = [[cell["text"] for cell in row] for row in rows]
-        # 补齐列数
-        max_cols = max(len(r) for r in table_data) if table_data else 0
-        table_data = [r + [""] * (max_cols - len(r)) for r in table_data]
+    table_data = [[cell["text"] for cell in row] for row in rows]
+    max_cols = max(len(r) for r in table_data) if table_data else 0
+    table_data = [r + [""] * (max_cols - len(r)) for r in table_data]
 
-        route_df = pd.DataFrame(table_data)
-        # 用第一行作为表头
-        if len(route_df) > 1: 
-           route_df.columns = route_df.iloc[0]
-           route_df = route_df.iloc[1:].reset_index(drop=True)
-        f = "data/route_price.csv"
-        route_df.to_csv(f, index=False, encoding='utf-8-sig')
-        success_files.append(f)
+    # 7. 转换为纵向记录
+    if len(table_data) < 3:
+        raise Exception("OCR 结果行数不足")
 
-        print(f"✅ 分线路数据 OCR 成功，共 {len(route_df)} 行")
-        print(route_df.to_string())
+    header = table_data[0]
+    data_rows = table_data[1:]
+
+    # 表头：["线路", "单位", "西安-成都", "长沙-厦门", "宁波-深圳"]
+    route_names = header[2:]
+    print(f"  识别到 {len(route_names)} 条线路: {route_names}")
+
+    new_records = []
+    i = 0
+    while i < len(data_rows) - 1:
+        price_row = data_rows[i]
+        change_row = data_rows[i + 1]
+
+        # 判断是否是价格-环比配对
+        if len(price_row) < 3 or len(change_row) < 3:
+            i += 1
+            continue
+
+        vehicle_type = price_row[0]
+        unit = price_row[1]
+
+        for j, route in enumerate(route_names):
+            col_idx = j + 2
+            if col_idx < len(price_row) and col_idx < len(change_row):
+                price = price_row[col_idx]
+                change = change_row[col_idx]
+                new_records.append({
+                    "发布日期": publish_date,
+                    "线路": route,
+                    "车型": vehicle_type,
+                    "单位": unit,
+                    "价格": price,
+                    "环比(%)": change,
+                })
+        i += 2  # 跳到下一对价格-环比
+
+    if not new_records:
+        raise Exception("未生成任何记录")
+
+    new_df = pd.DataFrame(new_records)
+    print(f"  本次新增: {len(new_df)} 条记录")
+
+    # 8. 合并新旧数据，按 (发布日期, 线路, 车型) 去重
+    if not existing_df.empty:
+        merged_df = pd.concat([existing_df, new_df], ignore_index=True)
+        merged_df = merged_df.drop_duplicates(
+            subset=["发布日期", "线路", "车型"], keep="last"
+        )
     else:
-        print("⚠️ 表1图片未下载，跳过 OCR")
+        merged_df = new_df
 
+    merged_df.to_csv(f, index=False, encoding='utf-8-sig')
+    success_files.append(f)
+    print(f"✅ 分线路数据累积成功")
+    print(f"   数据库总计: {len(merged_df)} 行")
+    print(f"   已包含 {merged_df['发布日期'].nunique()} 个发布日期")
+    print(merged_df.tail(10).to_string())
+
+except StopIteration:
+    pass
 except Exception as e:
     print(f"❌ 分线路数据获取失败: {e}")
